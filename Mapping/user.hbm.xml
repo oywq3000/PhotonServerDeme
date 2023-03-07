@@ -1,0 +1,22 @@
+﻿<?xml version="1.0" encoding="utf-8" ?>
+<hibernate-mapping xmlns="urn:nhibernate-mapping-2.2"
+                   assembly="PhotonServerDemo"
+                   namespace="PhotonServerDemo.Model">
+<!--Assemblys and namespace modify-->
+<!--mapper class and database-->
+
+	<class name ="User" table="user">
+		<id name="Id" column ="id" type ="Int32">
+			<generator class = "native"></generator> <!--self_increase for data-->
+		</id>
+
+		<!--mapper between class attribute and data table of database-->
+		<property name ="Name" column ="name" type ="String"></property>
+		<property name ="Age" column ="age" type ="Int32"></property>
+		<property name ="RecordTime" column ="record_time" type ="Date"></property>
+	</class>
+	
+	
+</hibernate-mapping>
+
+
