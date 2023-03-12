@@ -12,9 +12,15 @@ namespace PhotonServerDemo
     public class MyClient : ClientPeer
     {
         //perserve current client name
-        public string username_Current;
+        private string username_Current;
 
+        //perserve current player position info
+        private Vector3Data vector3Data_Current;
+        private Vector3Data rotData_Current;
 
+        public string Username_Current { get => username_Current; set => username_Current = value; }
+        public Vector3Data Vector3Data_Current { get => vector3Data_Current; set => vector3Data_Current = value; }
+        public Vector3Data RotData_Current { get => rotData_Current; set => rotData_Current = value; }
 
         public MyClient(InitRequest initRequest) : base(initRequest) { }
         //call when client disconnect
@@ -22,8 +28,30 @@ namespace PhotonServerDemo
         {
             MyServer.log.Info("One client disconnect from Game Development Class 1");
 
-            //remove disconnect client
+            //Exception exit
+            if (MyServer.roomList.Contains(this))
+            {
+
+                MyServer.roomList.Remove(this);
+
+                MyServer.log.Info($"Exception:{this.username_Current} Exit Room:" + MyServer.roomList.Count);
+              
+
+                //notify other roomed player that you exit room
+                foreach (var player in MyServer.roomList)
+                {
+                    MyServer.log.Info($"Exception: Notify {player.username_Current} that {username_Current} leave room");
+
+                    EventData eventData = new EventData((byte)EventCode.ExitRoom);
+                    Dictionary<byte, object> data = new Dictionary<byte, object>();
+                    data.Add((byte)ParameterCode.Username, username_Current);
+                    eventData.Parameters = data;
+                    player.SendEvent(eventData,new SendParameters());
+                }
+            }
+            //remove disconnected client
             MyServer.peerList.Remove(this);
+
         }
 
         //operation the request from client
@@ -67,6 +95,9 @@ namespace PhotonServerDemo
                 case (byte)OperationCode.SyncPosInfo:
                     OnHandleSyncPosInfoRequest(operationRequest, sendParameters);
                     break;
+                case (byte)OperationCode.SyncRotInfo:
+                    OnHandleSyncRotInfoRequest(operationRequest, sendParameters);
+                    break;
                 case (byte)OperationCode.SyncAttack:
                     OnHandleSyncAttackRequest(operationRequest, sendParameters);
                     break;
@@ -74,10 +105,10 @@ namespace PhotonServerDemo
                     OnHandleEntryRoomRequest(operationRequest, sendParameters);
                     break;
                 case (byte)OperationCode.ExitRoom:
-                    MyServer.log.Info("Handle ExitRoom Request");
                     OnHandleExitRoomRequest(operationRequest, sendParameters);
                     break;
-                default: break;
+               
+                default: break ;
             }
         }
         private void OnHandleLoginRequest(OperationRequest operationRequest, SendParameters sendParameters)
@@ -110,6 +141,7 @@ namespace PhotonServerDemo
                         myClient.SendEvent(eventData,sendParameters);
                         break;
                     }
+                    MyServer.log.Info("Foreach counter");
                 }
 
                 MyServer.log.Info($"Login Request: {username} {age}, request pass");
@@ -248,6 +280,34 @@ namespace PhotonServerDemo
 
         private void OnHandleSyncPosInfoRequest(OperationRequest operationRequest, SendParameters sendParameters)
         {
+            //get serialized file sending form client
+            object posObj;
+            operationRequest.Parameters.TryGetValue((byte)ParameterCode.PositionInfo, out posObj);
+
+            using (StringReader reader = new StringReader(posObj.ToString()))
+            {
+                XmlSerializer xmlSerializer = new XmlSerializer(typeof(Vector3Data));
+
+                vector3Data_Current = (Vector3Data)xmlSerializer.Deserialize(reader);
+
+               // MyServer.log.Info($"get {username_Current} position :(" + vector3Data_Current.x + "," + vector3Data_Current.y + "," + vector3Data_Current.z + ")");
+            }
+
+        }
+        private void OnHandleSyncRotInfoRequest(OperationRequest operationRequest, SendParameters sendParameters)
+        {
+            //get serialized file sending form client
+            object posObj;
+            operationRequest.Parameters.TryGetValue((byte)ParameterCode.RotationInfo, out posObj);
+
+            using (StringReader reader = new StringReader(posObj.ToString()))
+            {
+                XmlSerializer xmlSerializer = new XmlSerializer(typeof(Vector3Data));
+
+                rotData_Current = (Vector3Data)xmlSerializer.Deserialize(reader);
+
+               // MyServer.log.Info($"get {username_Current} Rotation :(" + vector3Data_Current.x + "," + vector3Data_Current.y + "," + vector3Data_Current.z + ")");
+            }
 
         }
 
@@ -260,17 +320,17 @@ namespace PhotonServerDemo
         private void OnHandleEntryRoomRequest(OperationRequest operationRequest, SendParameters sendParameters)
         {
             MyServer.roomList.Add(this);
-            MyServer.log.Info("Entry Room:" + MyServer.roomList.Count);
+            MyServer.log.Info(this.username_Current + " Entry Room and Room Player Count:" + MyServer.roomList.Count);
         }
         private void OnHandleExitRoomRequest(OperationRequest operationRequest, SendParameters sendParameters)
         {
             MyServer.roomList.Remove(this);
-            MyServer.log.Info("Exit Room:" + MyServer.roomList.Count);
+            MyServer.log.Info($"Normal:{this.username_Current} Exit Room:" + MyServer.roomList.Count);
 
             //notify other roomed player that you exit room
             foreach (var player in MyServer.roomList)
             {
-                MyServer.log.Info(username_Current+" Exit Room");
+                MyServer.log.Info($"Normal: Notify {player.username_Current} that {username_Current} leave room");
 
                 EventData eventData = new EventData((byte)EventCode.ExitRoom);
                 Dictionary<byte, object> data = new Dictionary<byte, object>();
@@ -279,7 +339,5 @@ namespace PhotonServerDemo
                 player.SendEvent(eventData, sendParameters);
             }
         }
-
-
     }
 }

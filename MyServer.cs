@@ -22,6 +22,9 @@ namespace PhotonServerDemo
         public static List<MyClient> peerList = new List<MyClient>();
         public static List<MyClient> roomList = new List<MyClient>();
 
+        public SyncThread syncThread = new SyncThread();
+
+
         /// <summary>
         /// peer to peer :端对端
         /// call this method when users connect this server
@@ -46,6 +49,8 @@ namespace PhotonServerDemo
             //init log
             InitLog();
 
+            syncThread.RunThread();
+
             log.Info("Start MyServer");
         }
 
@@ -54,6 +59,8 @@ namespace PhotonServerDemo
         /// </summary>
         protected override void TearDown()
         {
+
+            syncThread.StopThread();
             log.Info("Close MyServer");
         }
 
