@@ -29,26 +29,7 @@ namespace PhotonServerDemo
             MyServer.log.Info("One client disconnect from Game Development Class 1");
 
             //Exception exit
-            if (MyServer.roomList.Contains(this))
-            {
-
-                MyServer.roomList.Remove(this);
-
-                MyServer.log.Info($"Exception:{this.username_Current} Exit Room:" + MyServer.roomList.Count);
-              
-
-                //notify other roomed player that you exit room
-                foreach (var player in MyServer.roomList)
-                {
-                    MyServer.log.Info($"Exception: Notify {player.username_Current} that {username_Current} leave room");
-
-                    EventData eventData = new EventData((byte)EventCode.ExitRoom);
-                    Dictionary<byte, object> data = new Dictionary<byte, object>();
-                    data.Add((byte)ParameterCode.Username, username_Current);
-                    eventData.Parameters = data;
-                    player.SendEvent(eventData,new SendParameters());
-                }
-            }
+            CheckAndExitRoom(this);
             //remove disconnected client
             MyServer.peerList.Remove(this);
 
@@ -107,8 +88,10 @@ namespace PhotonServerDemo
                 case (byte)OperationCode.ExitRoom:
                     OnHandleExitRoomRequest(operationRequest, sendParameters);
                     break;
-               
-                default: break ;
+                case (byte)OperationCode.SyncGameOver:
+                    OnHandleGameOverRequest(operationRequest, sendParameters);
+                    break;
+                default: break;
             }
         }
         private void OnHandleLoginRequest(OperationRequest operationRequest, SendParameters sendParameters)
@@ -135,13 +118,14 @@ namespace PhotonServerDemo
                 //kick out the same accound
                 foreach (var myClient in MyServer.peerList)
                 {
-                    if (myClient.username_Current== username_Current&&myClient!=this)
+                    if (myClient.username_Current == username_Current && myClient != this)
                     {
+                        CheckAndExitRoom(myClient);
+
                         EventData eventData = new EventData((byte)EventCode.KickOut);
-                        myClient.SendEvent(eventData,sendParameters);
+                        myClient.SendEvent(eventData, sendParameters);
                         break;
                     }
-                    MyServer.log.Info("Foreach counter");
                 }
 
                 MyServer.log.Info($"Login Request: {username} {age}, request pass");
@@ -171,7 +155,7 @@ namespace PhotonServerDemo
 
             User user = new User() { Name = username.ToString(), Age = Int32.Parse(age.ToString()) };
 
-            
+
 
             if (controller.Add(user))
             {
@@ -223,7 +207,7 @@ namespace PhotonServerDemo
 
         private void OnHandleSyncSpawnPlayerRequest(OperationRequest operationRequest, SendParameters sendParameters)
         {
-            
+
             //get all onlined username
             List<string> usernameList = new List<string>();
             foreach (var myClient in MyServer.roomList)
@@ -232,7 +216,7 @@ namespace PhotonServerDemo
                 if (myClient != this)
                 {
                     usernameList.Add(myClient.username_Current);
-                    MyServer.log.Info(" Peer Count:"+MyServer.peerList.Count);
+                    MyServer.log.Info(" Peer Count:" + MyServer.peerList.Count);
 
                 }
             }
@@ -249,19 +233,19 @@ namespace PhotonServerDemo
                 //transform serialized xml to string
                 string usrnameListString = sw.ToString();
 
-                MyServer.log.Info($"Onlined palyer name list:"+usrnameListString);
+                MyServer.log.Info($"Onlined palyer name list:" + usrnameListString);
                 Dictionary<byte, object> data = new Dictionary<byte, object>();
                 data.Add((byte)ParameterCode.UsernameList, usrnameListString);
                 OperationResponse response = new OperationResponse(operationRequest.OperationCode);
-                response.SetParameters(data); 
-                SendOperationResponse(response,sendParameters);
+                response.SetParameters(data);
+                SendOperationResponse(response, sendParameters);
             }
 
 
 
 
             //2、broadcast to all onlined player for making them know you log in
-            foreach(MyClient myClient in MyServer.roomList)
+            foreach (MyClient myClient in MyServer.roomList)
             {
                 if (myClient != this)
                 {
@@ -290,7 +274,7 @@ namespace PhotonServerDemo
 
                 vector3Data_Current = (Vector3Data)xmlSerializer.Deserialize(reader);
 
-               // MyServer.log.Info($"get {username_Current} position :(" + vector3Data_Current.x + "," + vector3Data_Current.y + "," + vector3Data_Current.z + ")");
+                // MyServer.log.Info($"get {username_Current} position :(" + vector3Data_Current.x + "," + vector3Data_Current.y + "," + vector3Data_Current.z + ")");
             }
 
         }
@@ -306,38 +290,96 @@ namespace PhotonServerDemo
 
                 rotData_Current = (Vector3Data)xmlSerializer.Deserialize(reader);
 
-               // MyServer.log.Info($"get {username_Current} Rotation :(" + vector3Data_Current.x + "," + vector3Data_Current.y + "," + vector3Data_Current.z + ")");
+                // MyServer.log.Info($"get {username_Current} Rotation :(" + vector3Data_Current.x + "," + vector3Data_Current.y + "," + vector3Data_Current.z + ")");
             }
 
         }
 
         private void OnHandleSyncAttackRequest(OperationRequest operationRequest, SendParameters sendParameters)
         {
+            //Attack request for this player who are in the room list 
+            for (int i = 0; i < MyServer.roomList.Count; i++)
+            {
+                EventData eventData = new EventData((byte)EventCode.SyncAttack);
 
+                Dictionary<byte, object> data = new Dictionary<byte, object>();
+
+                data.Add((byte)ParameterCode.Username, this.username_Current);
+
+                eventData.SetParameters(data);
+
+                MyServer.roomList[i].SendEvent(eventData, sendParameters);
+            }
         }
-
-
         private void OnHandleEntryRoomRequest(OperationRequest operationRequest, SendParameters sendParameters)
         {
             MyServer.roomList.Add(this);
+
+            if (rotData_Current != null || vector3Data_Current != null)
+            {
+                PlayerData playerData = new PlayerData() { Username = username_Current, Pos = vector3Data_Current, Rot = rotData_Current };
+                //Sync pos and rot
+                using (StringWriter sw = new StringWriter())
+                {
+                    //create serialization object
+                    XmlSerializer xmlSerializer = new XmlSerializer(typeof(PlayerData));
+                    //use this object to serialize
+                    xmlSerializer.Serialize(sw, playerData);
+
+                    //transform serialized xml to string
+                    string playerDataString = sw.ToString();
+                    Dictionary<byte, object> data = new Dictionary<byte, object>();
+                    data.Add((byte)ParameterCode.PlayerData, playerDataString);
+
+                    EventData eventData = new EventData((byte)EventCode.EntryRoom);
+                    eventData.Parameters = data;
+                    this.SendEvent(eventData, new SendParameters());
+                }
+            }
+
+
             MyServer.log.Info(this.username_Current + " Entry Room and Room Player Count:" + MyServer.roomList.Count);
         }
         private void OnHandleExitRoomRequest(OperationRequest operationRequest, SendParameters sendParameters)
         {
-            MyServer.roomList.Remove(this);
-            MyServer.log.Info($"Normal:{this.username_Current} Exit Room:" + MyServer.roomList.Count);
+            CheckAndExitRoom(this);
+        }
 
-            //notify other roomed player that you exit room
-            foreach (var player in MyServer.roomList)
+        private void CheckAndExitRoom(MyClient myClient)
+        {
+            //Exception exit
+            if (MyServer.roomList.Contains(myClient))
             {
-                MyServer.log.Info($"Normal: Notify {player.username_Current} that {username_Current} leave room");
 
-                EventData eventData = new EventData((byte)EventCode.ExitRoom);
-                Dictionary<byte, object> data = new Dictionary<byte, object>();
-                data.Add((byte)ParameterCode.Username, username_Current);
-                eventData.Parameters = data;
-                player.SendEvent(eventData, sendParameters);
+                MyServer.roomList.Remove(myClient);
+
+                MyServer.log.Info($"{myClient.username_Current} Exit Room:" + MyServer.roomList.Count);
+
+
+                //notify other roomed player that you exit room
+                foreach (var player in MyServer.roomList)
+                {
+                    MyServer.log.Info($"Exception: Notify {player.username_Current} that {username_Current} leave room");
+
+                    EventData eventData = new EventData((byte)EventCode.ExitRoom);
+                    Dictionary<byte, object> data = new Dictionary<byte, object>();
+                    data.Add((byte)ParameterCode.Username, username_Current);
+                    eventData.Parameters = data;
+                    player.SendEvent(eventData, new SendParameters());
+                }
             }
+        }
+
+        private void OnHandleGameOverRequest(OperationRequest operationRequest, SendParameters sendParameters)
+        {
+            //remove this from room
+            MyServer.roomList.Remove(this);
+
+            //synchronize the data from client to data base 
+            object killCount;
+            operationRequest.Parameters.TryGetValue((byte)ParameterCode.KillCount, out killCount);
+            int killCountNum = int.Parse(killCount.ToString());
+            MyServer.log.Info("this game kill count:" + killCountNum);
         }
     }
 }

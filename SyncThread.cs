@@ -50,9 +50,6 @@ namespace PhotonServerDemo
                     playerData.Username = MyServer.roomList[i].Username_Current;
                     playerData.Pos = MyServer.roomList[i].Vector3Data_Current;
                     playerData.Rot = MyServer.roomList[i].RotData_Current;
-
-
-
                     playerDatas.Add(playerData);
                 }
                 using (StringWriter sw = new StringWriter())
