@@ -13,7 +13,9 @@
 		<!--mapper between class attribute and data table of database-->
 		<property name ="Name" column ="name" type ="String"></property>
 		<property name ="Age" column ="age" type ="Int32"></property>
-		<property name ="RecordTime" column ="record_time" type ="Date"></property>
+		<property name ="RecordTime" column ="record_time" type ="DateTime"></property>
+		<property name ="KillNum" column ="kill_num" type ="Int32"></property>
+		<property name ="DeathNum" column ="death_num" type ="Int32"></property>
 	</class>
 	
 	

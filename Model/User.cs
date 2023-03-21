@@ -19,6 +19,10 @@ namespace PhotonServerDemo.Model
 
         public virtual DateTime RecordTime { get; set; }
 
+        public virtual int KillNum { get; set; }
+        public virtual int DeathNum { get; set; }
+
+
         public override string ToString()
         {
             return $"Id:{Id} Name:{Name} Age:{Age} RecordTime:{RecordTime}";

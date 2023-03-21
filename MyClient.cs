@@ -374,12 +374,57 @@ namespace PhotonServerDemo
         {
             //remove this from room
             MyServer.roomList.Remove(this);
-
             //synchronize the data from client to data base 
             object killCount;
             operationRequest.Parameters.TryGetValue((byte)ParameterCode.KillCount, out killCount);
             int killCountNum = int.Parse(killCount.ToString());
             MyServer.log.Info("this game kill count:" + killCountNum);
+
+            UserController userController = new UserController();
+
+            //the last User Data
+          User lastUser =  userController.GetData(username_Current);
+
+            User user = new User {
+
+                Id = lastUser.Id,
+                Name = lastUser.Name,
+                Age = lastUser.Age,
+                KillNum = lastUser.KillNum + killCountNum,
+                DeathNum = ++lastUser.DeathNum,
+                RecordTime = DateTime.Now
+               
+            };
+          
+            userController.Update(user);
+            MyServer.log.Info("Database update, accumulative killContNum:" + user.KillNum);
+
+
+            //response to client by sending data needed by client for show in the end game 
+            GameEndData gameEdnData = new GameEndData();
+            gameEdnData.killNum = user.KillNum;
+            gameEdnData.deathNum = user.DeathNum;
+            gameEdnData.recordTime = lastUser.RecordTime;
+
+
+
+            using (StringWriter sw = new StringWriter())
+            {
+       
+                XmlSerializer serializer = new XmlSerializer(typeof(GameEndData));
+
+                serializer.Serialize(sw, gameEdnData);
+
+                Dictionary<byte, object> data = new Dictionary<byte, object>();
+                data.Add((byte)ParameterCode.GameEndData, sw.ToString());
+
+                OperationResponse operationResponse = new OperationResponse(operationRequest.OperationCode);
+
+                operationResponse.SetParameters(data);
+
+                SendOperationResponse(operationResponse, sendParameters);
+            }
+
         }
     }
 }
